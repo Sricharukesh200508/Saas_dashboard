@@ -85,3 +85,89 @@ async def process_saml_assertion(saml_response: str) -> Dict[str, Any]:
     """Validates SAML assertion and extracts user data"""
     # Requires python3-saml or similar
     pass
+
+
+# ── API Key Validation ────────────────────────────────────────────────────────
+import hashlib
+from fastapi import Header
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from dataclasses import dataclass
+
+
+@dataclass
+class ApiKeyContext:
+    tenant_id: str
+    api_key_id: str
+    scopes: list
+
+
+async def get_api_key_context(
+    x_api_key: str = Header(..., alias="X-API-Key"),
+    db: "AsyncSession" = Depends(lambda: None),  # overridden by endpoint
+) -> ApiKeyContext:
+    """
+    Validates X-API-Key header by SHA-256 hash lookup in api_keys table.
+    Raises 401 if key is invalid/inactive, 403 if missing required scope.
+    """
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid API key",
+    )
+
+
+def make_api_key_dep(required_scope: Optional[str] = None):
+    """
+    Factory that returns a FastAPI dependency for API key validation.
+    Usage: Depends(make_api_key_dep("metrics:write"))
+    """
+    async def _dep(
+        x_api_key: str = Header(..., alias="X-API-Key"),
+        db: AsyncSession = Depends(None),  # will be injected by route
+    ) -> ApiKeyContext:
+        from app.models.api_key import ApiKey
+        from app.db.base import get_db_session, set_tenant_context
+
+        key_hash = hashlib.sha256(x_api_key.encode()).hexdigest()
+
+        # We need a DB session — use a fresh one since this is a dependency
+        from app.db.base import async_session_maker
+        async with async_session_maker() as session:
+            stmt = select(ApiKey).where(
+                ApiKey.key_hash == key_hash,
+                ApiKey.is_active == True,  # noqa: E712
+            )
+            result = await session.execute(stmt)
+            api_key = result.scalar_one_or_none()
+
+        if not api_key:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or revoked API key",
+                headers={"WWW-Authenticate": "ApiKey"},
+            )
+
+        # Check expiry
+        if api_key.expires_at:
+            from datetime import datetime, timezone
+            if api_key.expires_at < datetime.now(timezone.utc):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="API key has expired",
+                )
+
+        # Check scope
+        if required_scope and required_scope not in (api_key.scopes or []):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"API key missing required scope: {required_scope}",
+            )
+
+        return ApiKeyContext(
+            tenant_id=str(api_key.tenant_id),
+            api_key_id=str(api_key.id),
+            scopes=api_key.scopes or [],
+        )
+
+    return _dep
+

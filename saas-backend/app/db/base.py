@@ -41,3 +41,15 @@ async def get_db_replica_session() -> AsyncGenerator[AsyncSession, None]:
     """Dependency for replica database session (Reads/Analytics)"""
     async with async_replica_session_maker() as session:
         yield session
+
+async def set_tenant_context(session: AsyncSession, tenant_id: str) -> None:
+    """
+    Set the PostgreSQL session-local variable used by RLS policies.
+    Must be called before any tenant-scoped query within the session.
+    Uses SET LOCAL so the context is scoped to the current transaction.
+    """
+    from sqlalchemy import text
+    await session.execute(
+        text("SELECT set_tenant_context(:tid)"),
+        {"tid": str(tenant_id)}
+    )
