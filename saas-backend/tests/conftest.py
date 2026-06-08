@@ -11,8 +11,16 @@ from app.main import app
 from app.db.base import get_db_session, get_db_replica_session, Base
 from app.config import settings
 
+import asyncio
+
 # Use the configured DATABASE_URL (ensure ENVIRONMENT=test points to a test DB)
 test_engine = create_async_engine(settings.DATABASE_URL, echo=False)
+
+@pytest.fixture(scope="session")
+def event_loop():
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
 TestSessionLocal = async_sessionmaker(
     autocommit=False,
     autoflush=False,
@@ -47,10 +55,12 @@ async def test_client(db_session):
     Kafka consumer is disabled via ENVIRONMENT=test (see main.py lifespan).
     """
     async def override_get_db_session():
-        yield db_session
+        async with TestSessionLocal() as session:
+            yield session
 
     async def override_get_replica_session():
-        yield db_session  # Use same session for tests
+        async with TestSessionLocal() as session:
+            yield session
 
     app.dependency_overrides[get_db_session] = override_get_db_session
     app.dependency_overrides[get_db_replica_session] = override_get_replica_session

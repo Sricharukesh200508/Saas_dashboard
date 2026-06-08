@@ -46,7 +46,7 @@ def create_refresh_token(subject: str, tenant_id: str, role: str) -> str:
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
     return encoded_jwt
 
-def decode_token(token: str) -> TokenPayload:
+def decode_token(token: str = Depends(oauth2_scheme)) -> TokenPayload:
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
         token_data = TokenPayload(**payload)
@@ -123,7 +123,6 @@ def make_api_key_dep(required_scope: Optional[str] = None):
     """
     async def _dep(
         x_api_key: str = Header(..., alias="X-API-Key"),
-        db: AsyncSession = Depends(None),  # will be injected by route
     ) -> ApiKeyContext:
         from app.models.api_key import ApiKey
         from app.db.base import get_db_session, set_tenant_context
