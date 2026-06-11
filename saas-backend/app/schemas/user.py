@@ -25,3 +25,7 @@ class UserResponse(UserBase):
     updated_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
+
+class UserInvite(BaseModel):
+    email: EmailStr
+    role: str = 'member'

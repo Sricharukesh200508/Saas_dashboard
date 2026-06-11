@@ -71,6 +71,13 @@ app.include_router(ws_router, prefix="/ws", tags=["WebSockets"])
 app.include_router(graphql_app, prefix="/graphql")
 
 
+from fastapi.responses import JSONResponse, RedirectResponse
+
+# ── Root Redirect ─────────────────────────────────────────────────────────────
+@app.get("/", include_in_schema=False)
+async def root():
+    return RedirectResponse(url="/api/docs")
+
 # ── Health Check ──────────────────────────────────────────────────────────────
 @app.get("/health", tags=["Health"])
 async def health_check():

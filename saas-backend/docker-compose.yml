@@ -18,6 +18,7 @@ services:
         condition: service_started
     volumes:
       - ./app:/app/app
+      - ./seed.py:/app/seed.py
     restart: unless-stopped
     networks:
       - saas_network

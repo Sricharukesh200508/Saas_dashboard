@@ -1,6 +1,7 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, ConfigDict
 from typing import Optional, List
 from uuid import UUID
+from datetime import datetime
 
 class Token(BaseModel):
     access_token: str
@@ -26,10 +27,15 @@ class ApiKeyCreate(BaseModel):
 
 class ApiKeyResponse(BaseModel):
     id: UUID
+    tenant_id: UUID
     name: str
-    key_prefix: str
-    key_secret: Optional[str] = None  # Only returned on creation
+    partial_key: str
+    raw_key: Optional[str] = None
     scopes: List[str]
+    created_at: datetime
+    last_used_at: Optional[datetime]
+
+    model_config = ConfigDict(from_attributes=True)
 
 # ── Registration ──────────────────────────────────────────────────────────────
 

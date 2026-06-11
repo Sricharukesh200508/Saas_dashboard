@@ -9,6 +9,7 @@ class TenantBase(BaseModel):
     domain: Optional[str] = None
     plan: str = 'starter'
     is_active: bool = True
+    settings: Optional[dict] = {}
 
 class TenantCreate(TenantBase):
     pass
@@ -18,6 +19,7 @@ class TenantUpdate(BaseModel):
     domain: Optional[str] = None
     plan: Optional[str] = None
     is_active: Optional[bool] = None
+    settings: Optional[dict] = None
 
 class TenantResponse(TenantBase):
     id: UUID

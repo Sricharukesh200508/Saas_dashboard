@@ -1,6 +1,6 @@
 import uuid
 from sqlalchemy import Column, String, Boolean, Enum
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.db.base import Base
 from app.db.mixins import TimestampMixin
 
@@ -13,3 +13,4 @@ class Tenant(Base, TimestampMixin):
     domain = Column(String(255), nullable=True)
     plan = Column(Enum('starter', 'pro', 'enterprise', name='tenant_plan_enum'), default='starter', nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    settings = Column(JSONB, default={})
