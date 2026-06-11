@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      # SSL Certs mapping for Let's Encrypt
+      # - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - api
+    restart: always
+    networks:
+      - saas_network
+
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    # Do NOT expose ports directly to host, only Nginx routes traffic here
+    env_file:
+      - ../.env
+    environment:
+      - ENVIRONMENT=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      kafka:
+        condition: service_started
+    # No source code volumes mounted; relies entirely on the built Docker image
+    restart: always
+    networks:
+      - saas_network
+
+  celery:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command: celery -A app.workers.celery_app worker -l warning --concurrency=8
+    env_file:
+      - ../.env
+    depends_on:
+      - redis
+      - postgres
+    restart: always
+    networks:
+      - saas_network
+
+  celery-beat:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command: celery -A app.workers.celery_app beat -l warning
+    env_file:
+      - ../.env
+    depends_on:
+      - redis
+      - postgres
+    restart: always
+    networks:
+      - saas_network
+
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    env_file:
+      - ../.env
+    # Do NOT expose 5432 to host for security
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    networks:
+      - saas_network
+
+  redis:
+    image: redis:7-alpine
+    # Do NOT expose 6379 to host for security
+    volumes:
+      - redis_data:/data
+    restart: always
+    networks:
+      - saas_network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    restart: always
+    networks:
+      - saas_network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    restart: always
+    networks:
+      - saas_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  saas_network:
+    driver: bridge
