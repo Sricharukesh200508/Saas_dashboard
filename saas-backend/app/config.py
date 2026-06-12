@@ -6,7 +6,11 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # CORS — restrict to trusted front-end origins
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+
+    @property
+    def parsed_allowed_origins(self) -> List[str]:
+        return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
 
     # PostgreSQL & TimescaleDB
     DATABASE_URL: str
