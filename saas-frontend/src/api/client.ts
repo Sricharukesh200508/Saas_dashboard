@@ -5,6 +5,7 @@ import { getStoredTokens, storeTokens, clearAuthStorage } from '@/utils/storage'
 import { logger } from '@/utils/logger'
 import { ENDPOINTS } from '@/config/api.config'
 import type { Token } from '@/types/auth'
+import { useAuthStore } from '@/store/auth.store'
 
 // ────────────────────────────────────────────────────────────────
 // Axios instance
@@ -64,6 +65,7 @@ apiClient.interceptors.response.use(
       const tokens = getStoredTokens()
       if (!tokens?.refresh_token) {
         clearAuthStorage()
+        useAuthStore.getState().clearAuth()
         window.location.href = '/login'
         return Promise.reject(error)
       }
@@ -93,6 +95,7 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest)
       } catch (refreshError) {
         clearAuthStorage()
+        useAuthStore.getState().clearAuth()
         window.location.href = '/login'
         return Promise.reject(refreshError)
       } finally {
